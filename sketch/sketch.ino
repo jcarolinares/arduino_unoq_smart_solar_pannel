@@ -8,8 +8,11 @@ CC-BY-SA
 
 */
 
+#include <Arduino_RouterBridge.h>
+#include <Arduino_Modulino.h>
 #include "Servo.h"
-#include <Modulino.h>
+// #include <Modulino.h>
+
 
 Servo servo_bottom;
 Servo servo_top;
@@ -32,14 +35,23 @@ int luxCalibrated = 0;
 int ir = 0;
 
 
+// Alerts
+bool weather_alert = false;
+
 void setup() {
 
-  Serial.begin(115200);
+    // Bridge Initialization
+  // Serial.begin(115200);
+  Serial.begin(9600);
+  Bridge.begin();
+  Bridge.provide("set_weather_alert", set_weather_alert);
   
   // Modulino Init
   Modulino.begin();
   light.begin();
 
+  pinMode(LED_BUILTIN, OUTPUT);
+  
   // Servo motors Init
   servo_bottom.attach(servoPin_bottom);
   servo_top.attach(servoPin_top);
@@ -68,7 +80,7 @@ void loop() {
   // Serial.println();
 
 
-  if (lux < 100){
+  if (lux < 100 || weather_alert == true){
     servo_bottom.write(min_position);
     servo_top.write(min_position);
     delay(100);
@@ -85,4 +97,19 @@ void loop() {
   //   delay(100);
   // }
   delay(1000);
+}
+
+void set_weather_alert(bool state) {
+    
+  if (state == true){
+    // LOW state means LED is ON
+    digitalWrite(LED_BUILTIN, LOW);
+    Serial.println("Weather Alert Detected");    
+    weather_alert = true;
+  }
+  else{
+    digitalWrite(LED_BUILTIN, HIGH);
+    Serial.println("Weather Alert Finished");    
+    weather_alert = false;
+  }
 }
