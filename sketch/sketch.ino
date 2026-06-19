@@ -5,23 +5,23 @@ CC-BY-SA
 */
 
 #include <Arduino_RouterBridge.h>
-#include <Arduino_Modulino.h>
 #include "Servo.h"
 
 Servo servo_bottom;
 Servo servo_top;
 
-ModulinoLight light;
-
 // Define the pin the servo's signal wire is connected to
 const int servoPin_bottom = 5;
 const int servoPin_top = 6;
+
+// Define the Analog pin for the Solar Panel
+const int solarPin = A0;
 
 // Servo saved positions & Scanning Variables
 const int idle_position = 90;
 const int min_position = 45;
 const int max_position = 135;
-const int scan_step_degrees = 10; // 5 degrees for High Resolution 
+const int scan_step_degrees = 5; // 10 degrees for High Resolution 
 const int scan_delay_ms = 100;
 
 // Calculate the required matrix size automatically
@@ -38,15 +38,6 @@ int last_best_top = idle_position;
 unsigned long previousScanTime = 0;
 const unsigned long scanInterval = 60000; // 60,000 ms = 1 minute
 
-// Modulino Light Variables
-int lux = 0;
-int luxCalibrated = 0;
-int ir = 0;
-
-// Sensor Mode Toggle
-// false = Raw Ambient Light (AL), true = Infrared (IR)
-bool use_infrared = false; 
-
 // Alerts
 bool weather_alert = false;
 
@@ -55,13 +46,9 @@ void setup() {
   Serial.begin(9600);
   Bridge.begin();
   Bridge.provide("set_weather_alert", set_weather_alert);
-  Bridge.provide("set_infrared_mode", set_infrared_mode); // New bridge command
   
-  // Modulino Init
-  Modulino.begin();
-  light.begin();
-
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(solarPin, INPUT); // Initialize the analog pin
   
   // Servo motors Init
   servo_bottom.attach(servoPin_bottom);
@@ -74,18 +61,16 @@ void setup() {
 }
 
 void loop() {
-  // Update sensor readings continuously
-  light.update();
-
-  lux = light.getAL();              // Ambient light (raw)
-  luxCalibrated = light.getLux();   // Calibrated lux for the Human Eye. High green predominance
-  ir = light.getIR();               // Infrared level
+  // Read the current solar panel analog value (0 - 1023)
+  int solarValue = analogRead(solarPin);
 
   if (weather_alert == true){
     servo_bottom.write(min_position);
     servo_top.write(min_position);
   } 
-  else if (luxCalibrated < 100) {
+  // If the value is very low, it's likely night time. 
+  // You may need to adjust this '50' threshold based on your actual panel's output in the dark.
+  else if (solarValue < 50) { 
     servo_bottom.write(idle_position);
     servo_top.write(idle_position);
   }
@@ -106,7 +91,7 @@ void loop() {
 // ---------------------------------------------------------
 // Function: scanForMaxValue
 // Purpose: Scans the sky, saves the map to scan_matrix based
-//          on the selected sensor, and points the panel at it.
+//          on the solar panel output, and points the panel at it.
 // ---------------------------------------------------------
 void scanForMaxValue(int stepSize, int stepDelay) {
   int maxValueFound = -1;
@@ -126,10 +111,8 @@ void scanForMaxValue(int stepSize, int stepDelay) {
         servo_top.write(t);
         delay(stepDelay);
         
-        light.update();
-        
-        // Check which sensor data to use based on the toggle
-        int currentValue = use_infrared ? light.getIR() : light.getAL();
+        // Read directly from the Solar Panel
+        int currentValue = analogRead(solarPin);
         
         // Calculate the array Y index for the top servo and save it
         int t_idx = (t - min_position) / stepSize;
@@ -146,10 +129,8 @@ void scanForMaxValue(int stepSize, int stepDelay) {
         servo_top.write(t);
         delay(stepDelay);
         
-        light.update();
-        
-        // Check which sensor data to use based on the toggle
-        int currentValue = use_infrared ? light.getIR() : light.getAL();
+        // Read directly from the Solar Panel
+        int currentValue = analogRead(solarPin);
         
         // Calculate the array Y index for the top servo and save it
         int t_idx = (t - min_position) / stepSize;
@@ -178,13 +159,9 @@ void scanForMaxValue(int stepSize, int stepDelay) {
   printScanMatrix();
 
   // Print the final chosen coordinates and Sensor Value
-  String sourceName = use_infrared ? "Infrared (IR)" : "Raw Light (AL)";
-  
   Serial.println("=================================");
-  Serial.print("TARGET ACQUIRED (Source: ");
-  Serial.print(sourceName);
-  Serial.println(")");
-  Serial.print("Value: ");
+  Serial.println("TARGET ACQUIRED (Source: Solar Panel A0)");
+  Serial.print("Peak Value: ");
   Serial.print(maxValueFound);
   Serial.print(" at (Bottom: ");
   Serial.print(bestBottomPos);
@@ -199,11 +176,7 @@ void scanForMaxValue(int stepSize, int stepDelay) {
 // Purpose: Outputs the saved 2D array to the Serial Monitor
 // ---------------------------------------------------------
 void printScanMatrix() {
-  String sourceName = use_infrared ? "INFRARED" : "RAW LIGHT";
-  
-  Serial.print("--- Sky Heatmap [Data Source: ");
-  Serial.print(sourceName);
-  Serial.println("] ---");
+  Serial.println("--- Sky Heatmap [Data Source: SOLAR PANEL (A0)] ---");
   
   // Print Top Servo Angles (Columns)
   Serial.print("B\\T\t");
@@ -241,16 +214,5 @@ void set_weather_alert(bool state) {
     digitalWrite(LED_BUILTIN, HIGH);
     Serial.println("Weather Alert Finished");    
     weather_alert = false;
-  }
-}
-
-// App Lab Command to switch the sensor reading mode
-void set_infrared_mode(bool state) {
-  use_infrared = state;
-  if (use_infrared == true){
-    Serial.println("Sensor mode changed to: INFRARED");    
-  }
-  else{
-    Serial.println("Sensor mode changed to: RAW LIGHT");    
   }
 }
