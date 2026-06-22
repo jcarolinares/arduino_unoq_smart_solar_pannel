@@ -8,10 +8,19 @@ the top and bottom servos, including dynamic matrix sizing.
 */
 
 #include <Arduino_RouterBridge.h>
+#include <Arduino_Modulino.h>
 #include "Servo.h"
 
+
+// Servo Objects
 Servo servo_bottom;
 Servo servo_top;
+
+// Modulino Objects
+ModulinoLight light;
+ModulinoThermo thermo;
+ModulinoMovement movement;
+ModulinoVibro vibro;
 
 // Define the pin the servo's signal wire is connected to
 const int servoPin_bottom = 5;
@@ -50,6 +59,23 @@ int last_best_top = idle_position;
 unsigned long previousScanTime = 0;
 const unsigned long scanInterval = 60000; // 60,000 ms = 1 minute
 
+
+
+// Modulino Light Variables
+int lux = 0;           // Ambient light (raw)
+int luxCalibrated = 0;   // Calibrated lux
+int ir = 0;               // Infrared level
+
+
+// Modulino Temp and Humidity Variables
+float celsius = 0;
+float humidity = 0;
+
+// Modulino Movement Variables
+float x, y, z;
+float roll, pitch, yaw;
+
+
 // Alerts
 bool weather_alert = false;
 
@@ -61,6 +87,13 @@ void setup() {
   
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(solarPin, INPUT); // Initialize the analog pin
+
+  // Modulino Init
+  Modulino.begin();
+  light.begin();
+  thermo.begin();
+  vibro.begin();
+  
   
   // Servo motors Init
   servo_bottom.attach(servoPin_bottom);
@@ -75,33 +108,69 @@ void setup() {
   servo_bottom.write(bottom_min_position);
   delay(5000);
 
-  servo_bottom.write(bottom_max_position);
-  delay(5000);
+  // Debugging Calibration Positions
+  // servo_bottom.write(bottom_max_position);
+  // delay(5000);
 
-   // Move to idle initially
-  servo_top.write(top_min_position);
-  delay(5000);
+  //  // Move to idle initially
+  // servo_top.write(top_min_position);
+  // delay(5000);
 
-  servo_top.write(top_max_position);
-  delay(5000);
+  // servo_top.write(top_max_position);
+  // delay(5000);
 }
 
 void loop() {
+  // Update sensor readings
+  
   // Read the current solar panel analog value (0 - 1023)
   int solarValue = analogRead(solarPin);
   // Serial.print("Solar value: ");
   // Serial.println(solarValue);
 
+  // Modulino Readings
+  light.update();
+  movement.update();
   
+  
+  // Modulino Light Readings
+  lux = light.getAL();              // Ambient light (raw)
+  luxCalibrated = light.getLux();   // Calibrated lux for human vision
+  ir = light.getIR();               // Infrared level
+  
+  // Modulino Temp Humidity Readings
+  celsius = thermo.getTemperature();
+  humidity = thermo.getHumidity();
+
+  // Modulino Movements readings
+  x = movement.getX();
+  y = movement.getY();
+  z = movement.getZ();
+  roll = movement.getRoll();
+  pitch = movement.getPitch();
+  yaw = movement.getYaw();
+
+
+  Serial.print("Temp:");
+  Serial.println(celsius);
+  
+  // Control Loop State Machine
   if (weather_alert == true){
     // Fold to safe limits during bad weather
     servo_bottom.write(bottom_min_position);
     servo_top.write(top_min_position);
+    panel_cleaning();
   } 
-  // If the value is very low, it's likely night time. 
+  // Night Time Mode
   else if (solarValue < 100) { 
     servo_bottom.write(idle_position);
     servo_top.write(idle_position);
+  }
+  // Excessive Temperature Alert Mode
+  else if (celsius > 36) { // 36 for testing (finger on sensor)
+    Serial.println("Excessive heat alert. Safe mode activated");
+    servo_bottom.write(idle_position);
+    servo_top.write(top_min_position);
   }
   else {
     unsigned long currentMillis = millis();
@@ -233,6 +302,24 @@ void printScanMatrix() {
   Serial.println("-----------------------");
 }
 
+
+
+void panel_cleaning()
+{
+
+  // We put the panel in a vertical position for extra cleaning
+  servo_bottom.write(idle_position);
+  servo_top.write(idle_position);
+  delay(100);
+  
+  vibro.on(5000);
+  delay(1000);
+  
+  // Turn off vibration
+  vibro.off();
+  delay(10000);
+}
+
 // App Lab Command to set the weather alert
 void set_weather_alert(bool state) {
   if (state == true){
@@ -246,3 +333,15 @@ void set_weather_alert(bool state) {
     weather_alert = false;
   }
 }
+
+
+    // // Read new movement data from the sensor
+    // has_movement = movement.update();
+    // if(has_movement == 1) {
+    //   // Get acceleration values
+    //   x_accel = movement.getX();
+    //   y_accel = movement.getY();
+    //   z_accel = movement.getZ();
+    
+    //   Bridge.notify("record_sensor_movement", x_accel, y_accel, z_accel);      
+    // }
