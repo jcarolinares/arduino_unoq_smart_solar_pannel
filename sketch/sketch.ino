@@ -57,7 +57,7 @@ int last_best_top = idle_position;
 
 // Non-blocking Timer Variables
 unsigned long previousScanTime = 0;
-const unsigned long scanInterval = 60000; // 60,000 ms = 1 minute
+const unsigned long scanInterval = 60000*5; // 60,000 ms = 1 minute
 
 
 
@@ -72,7 +72,7 @@ float celsius = 0;
 float humidity = 0;
 
 // Modulino Movement Variables
-float x, y, z;
+float x_accel, y_accel, z_accel;
 float roll, pitch, yaw;
 
 
@@ -102,11 +102,11 @@ void setup() {
   // Move to idle initially
   servo_bottom.write(idle_position);
   servo_top.write(idle_position);
-  delay(5000);
+  delay(10000);
 
     // Move to idle initially
-  servo_bottom.write(bottom_min_position);
-  delay(5000);
+  // servo_bottom.write(bottom_min_position);
+  // delay(10000);
 
   // Debugging Calibration Positions
   // servo_bottom.write(bottom_max_position);
@@ -143,16 +143,15 @@ void loop() {
   humidity = thermo.getHumidity();
 
   // Modulino Movements readings
-  x = movement.getX();
-  y = movement.getY();
-  z = movement.getZ();
+  x_accel = movement.getX();
+  y_accel = movement.getY();
+  z_accel = movement.getZ();
   roll = movement.getRoll();
   pitch = movement.getPitch();
   yaw = movement.getYaw();
 
-
-  Serial.print("Temp:");
-  Serial.println(celsius);
+  // Serial.print("Temp:");
+  // Serial.println(celsius);
   
   // Control Loop State Machine
   if (weather_alert == true){
@@ -183,7 +182,7 @@ void loop() {
     }
   }
   
-  delay(50); 
+  delay(1000); // Being a solar Panel is ok to have 1 second reading 
 }
 
 // ---------------------------------------------------------

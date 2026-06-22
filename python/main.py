@@ -29,7 +29,7 @@ def loop():
         
          
     # You can replace this with any code you want your App to run repeatedly.
-    time.sleep(5)
+    time.sleep(60)
 
 
 # See: https://docs.arduino.cc/software/app-lab/tutorials/getting-started/#app-run
