@@ -5,55 +5,159 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UNO Q Solar Panel Telemetry</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }
-        .chart-container { width: 45%; display: inline-block; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 1%; }
-        h1 { text-align: center; color: #333; }
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; text-align: center; }
+        .dashboard-row { display: flex; justify-content: space-around; flex-wrap: wrap; margin-bottom: 20px; }
+        
+        /* Unified container style for Top Row items */
+        .panel-container { width: 45%; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center;}
+        
+        /* Container style for Bottom Row graphs */
+        .chart-container { width: 45%; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        
+        h1 { color: #333; width: 100%; }
+        h3 { margin-top: 0; color: #555; }
+        canvas#panelCanvas { background-color: #e0f2fe; border-radius: 4px; border: 1px solid #bae6fd; }
+        
+        /* Weather Widget Styles */
+        #weatherIcon { font-size: 5rem; margin: 10px 0; }
+        #weatherCategory { margin: 5px 0; font-size: 1.5rem; text-transform: uppercase; color: #334155; }
+        #weatherDesc { color: #64748b; margin: 0; font-style: italic; }
     </style>
 </head>
 <body>
 
     <h1>UNO Q Edge AI Telemetry</h1>
     
-    <div class="chart-container">
-        <canvas id="solarChart"></canvas>
-    </div>
-    
-    <div class="chart-container">
-        <canvas id="irChart"></canvas>
+    <div class="dashboard-row">
+        <div class="panel-container">
+            <h3>Live Panel Orientation</h3>
+            <canvas id="panelCanvas" width="250" height="250"></canvas>
+            <p id="angleText">Pan: 90° | Tilt: 90°</p>
+        </div>
+
+        <div class="panel-container">
+            <h3>Current Weather (Turin)</h3>
+            <div id="weatherIcon">⏳</div>
+            <div id="weatherCategory">Loading...</div>
+            <p id="weatherDesc">Awaiting API data</p>
+        </div>
     </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <div class="dashboard-row">
+        <div class="chart-container">
+            <canvas id="solarChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="irChart"></canvas>
+        </div>
+    </div>
 
     <script>
-        // --- Chart Configurations ---
-        const maxDataPoints = 50; // How many data points to show before scrolling
+        // --- WEATHER WIDGET LOGIC ---
+        const weatherEmojis = {
+            "sunny": "☀️",
+            "cloudy": "☁️",
+            "rainy": "🌧️",
+            "snowy": "❄️",
+            "foggy": "🌫️"
+        };
+
+        // --- LIVE PANEL SKETCH LOGIC ---
+        const canvas = document.getElementById('panelCanvas');
+        const ctx = canvas.getContext('2d');
+        const angleText = document.getElementById('angleText');
+
+        function drawPanel(pan, tilt) {
+            angleText.innerText = `Pan (Bottom): ${pan}° | Tilt (Top): ${tilt}°`;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+
+            ctx.fillStyle = '#f1f5f9';
+            ctx.beginPath();
+            ctx.arc(0, 0, 90, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#64748b';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("FRONT", 0, 105);
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, 90);
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#475569';
+            ctx.beginPath();
+            ctx.arc(0, 0, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            
+            let panRad = (90 - pan) * (Math.PI / 180);
+            ctx.rotate(panRad);
+            
+            let tiltScale = Math.sin(tilt * (Math.PI / 180));
+            ctx.scale(1, Math.max(tiltScale, 0.05)); 
+            
+            ctx.fillStyle = '#0284c7'; 
+            ctx.fillRect(-75, -50, 150, 100);
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-75, -50, 150, 100);
+            
+            ctx.beginPath();
+            ctx.moveTo(-75, 0); ctx.lineTo(75, 0);
+            ctx.moveTo(-25, -50); ctx.lineTo(-25, 50);
+            ctx.moveTo(25, -50); ctx.lineTo(25, 50);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(0, 38, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        drawPanel(90, 90);
+
+        // --- CHART & TELEMETRY LOGIC ---
+        const maxDataPoints = 50; 
         
-        // Setup Solar Chart
         const ctxSolar = document.getElementById('solarChart').getContext('2d');
         const solarChart = new Chart(ctxSolar, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Solar Voltage (A0)', borderColor: 'rgba(255, 206, 86, 1)', backgroundColor: 'rgba(255, 206, 86, 0.2)', data: [], fill: true, tension: 0.4 }] },
+            data: { labels: [], datasets: [{ label: 'Solar Voltage (A0)', borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.2)', data: [], fill: true, tension: 0.4 }] },
             options: { responsive: true, scales: { y: { suggestedMin: 0, suggestedMax: 1023 } }, animation: false }
         });
 
-        // Setup Infrared Chart
         const ctxIR = document.getElementById('irChart').getContext('2d');
         const irChart = new Chart(ctxIR, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Infrared Level (Modulino)', borderColor: 'rgba(255, 99, 132, 1)', backgroundColor: 'rgba(255, 99, 132, 0.2)', data: [], fill: true, tension: 0.4 }] },
+            data: { labels: [], datasets: [{ label: 'Infrared Level (Modulino)', borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.2)', data: [], fill: true, tension: 0.4 }] },
             options: { responsive: true, scales: { y: { suggestedMin: 0, suggestedMax: 1023 } }, animation: false }
         });
 
-        // Helper function to update charts
         function updateChart(chart, value) {
             const timeNow = new Date().toLocaleTimeString();
             chart.data.labels.push(timeNow);
             chart.data.datasets[0].data.push(value);
-            
-            // Keep the chart from getting too long
             if (chart.data.labels.length > maxDataPoints) {
                 chart.data.labels.shift();
                 chart.data.datasets[0].data.shift();
@@ -61,19 +165,21 @@
             chart.update();
         }
 
-        // --- AppLab WebUI Connection via Socket.io ---
-        // Connects automatically to the AppLab WebUI backend
+        // --- APPLAB SOCKET CONNECTION ---
         const socket = io(); 
 
-        // Listen for the exact topic names sent by Python ui.send_message()
-        socket.on("solar_update", function(data) {
-            updateChart(solarChart, data.value);
+        socket.on("solar_update", function(data) { updateChart(solarChart, data.value); });
+        socket.on("ir_update", function(data) { updateChart(irChart, data.value); });
+        socket.on("position_update", function(data) { drawPanel(data.pan, data.tilt); });
+
+        // NEW: Listen for weather updates and change the DOM elements
+        socket.on("weather_update", function(data) {
+            document.getElementById("weatherCategory").innerText = data.category;
+            document.getElementById("weatherDesc").innerText = data.description;
+            // Fallback to a default globe emoji if category is unrecognized
+            document.getElementById("weatherIcon").innerText = weatherEmojis[data.category] || "🌍";
         });
 
-        socket.on("ir_update", function(data) {
-            updateChart(irChart, data.value);
-        });
     </script>
-
 </body>
 </html>

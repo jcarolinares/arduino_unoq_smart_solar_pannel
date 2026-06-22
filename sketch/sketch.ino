@@ -95,6 +95,8 @@ void setup() {
   Bridge.provide("set_weather_alert", set_weather_alert);
   Bridge.provide("get_solar", get_solar);
   Bridge.provide("get_infrared", get_infrared);
+  Bridge.provide("get_bottom", get_bottom);
+  Bridge.provide("get_top", get_top);
   
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(solarPin, INPUT); 
@@ -332,4 +334,12 @@ int get_solar() {
 
 int get_infrared() {
   return latest_ir_val;
+}
+
+int get_bottom() {
+  return servo_bottom.read();
+}
+
+int get_top() {
+  return servo_top.read();
 }
