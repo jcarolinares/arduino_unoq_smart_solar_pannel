@@ -3,14 +3,13 @@ UNO Q Smart Solar Pannel System
 Created by Julián Caro Linares for Arduino and Qualcomm
 CC-BY-SA
 
-Updated to support independent minimum and maximum angles for 
-the top and bottom servos, including dynamic matrix sizing.
+Updated to fully integrate the Bridge variables for Python Telemetry,
+fixing the variable scope errors.
 */
 
 #include <Arduino_RouterBridge.h>
 #include <Arduino_Modulino.h>
 #include "Servo.h"
-
 
 // Servo Objects
 Servo servo_bottom;
@@ -40,60 +39,71 @@ const int bottom_max_position = 155;
 const int top_min_position = 5; 
 const int top_max_position = 90; 
 
-const int scan_step_degrees = 5; // 5 degrees for High Resolution 
+const int scan_step_degrees = 10; // 5 degrees for High Resolution 
 const int scan_delay_ms = 100;
 
 // Calculate the required matrix sizes automatically based on independent limits
 const int num_bottom_steps = ((bottom_max_position - bottom_min_position) / scan_step_degrees) + 1;
 const int num_top_steps = ((top_max_position - top_min_position) / scan_step_degrees) + 1;
 
-// 2D Array to store the sensor values (The Sky Heatmap)
-// It is now a dynamically sized rectangle rather than a square
+// 2D Arrays to store the sensor values (The Sky Heatmaps)
 int scan_matrix[num_bottom_steps][num_top_steps];
+int ir_matrix[num_bottom_steps][num_top_steps];
 
 // Global Memory for the last known best position
 int last_best_bottom = idle_position;
 int last_best_top = idle_position;
 
+// --- GLOBAL VARIABLES FOR PYTHON BRIDGE ---
+int latest_solar_val = 0;
+int latest_ir_val = 0;
+// ------------------------------------------
+
 // Non-blocking Timer Variables
 unsigned long previousScanTime = 0;
-const unsigned long scanInterval = 60000*5; // 60,000 ms = 1 minute
+const unsigned long scanInterval = 60000 * 5; // 300,000 ms = 5 minutes
 
-
-
-// Modulino Light Variables
-int lux = 0;           // Ambient light (raw)
-int luxCalibrated = 0;   // Calibrated lux
-int ir = 0;               // Infrared level
-
-
-// Modulino Temp and Humidity Variables
+// Modulino Variables
+int lux = 0;           
+int luxCalibrated = 0; 
+int ir = 0;            
 float celsius = 0;
 float humidity = 0;
-
-// Modulino Movement Variables
 float x_accel, y_accel, z_accel;
 float roll, pitch, yaw;
 
-
 // Alerts
 bool weather_alert = false;
+
+// ==========================================
+// FORWARD DECLARATIONS
+// ==========================================
+void set_weather_alert(bool state);
+void scanForMaxValue(int stepSize, int stepDelay);
+void printScanMatrix();
+void printIRMatrix();
+void panel_cleaning();
+int get_solar();
+int get_infrared();
 
 void setup() {
   // Bridge Initialization
   Serial.begin(9600);
   Bridge.begin();
+  
+  // Register all Python-accessible functions
   Bridge.provide("set_weather_alert", set_weather_alert);
+  Bridge.provide("get_solar", get_solar);
+  Bridge.provide("get_infrared", get_infrared);
   
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(solarPin, INPUT); // Initialize the analog pin
+  pinMode(solarPin, INPUT); 
 
   // Modulino Init
   Modulino.begin();
   light.begin();
   thermo.begin();
   vibro.begin();
-  
   
   // Servo motors Init
   servo_bottom.attach(servoPin_bottom);
@@ -103,92 +113,58 @@ void setup() {
   servo_bottom.write(idle_position);
   servo_top.write(idle_position);
   delay(10000);
-
-    // Move to idle initially
-  // servo_bottom.write(bottom_min_position);
-  // delay(10000);
-
-  // Debugging Calibration Positions
-  // servo_bottom.write(bottom_max_position);
-  // delay(5000);
-
-  //  // Move to idle initially
-  // servo_top.write(top_min_position);
-  // delay(5000);
-
-  // servo_top.write(top_max_position);
-  // delay(5000);
 }
 
 void loop() {
-  // Update sensor readings
-  
   // Read the current solar panel analog value (0 - 1023)
   int solarValue = analogRead(solarPin);
-  // Serial.print("Solar value: ");
-  // Serial.println(solarValue);
 
   // Modulino Readings
   light.update();
   movement.update();
   
-  
   // Modulino Light Readings
-  lux = light.getAL();              // Ambient light (raw)
-  luxCalibrated = light.getLux();   // Calibrated lux for human vision
-  ir = light.getIR();               // Infrared level
+  lux = light.getAL();              
+  luxCalibrated = light.getLux();   
+  ir = light.getIR();               
+  
+  // Update the global variables so Python can fetch the latest data!
+  latest_solar_val = solarValue;
+  latest_ir_val = ir;
   
   // Modulino Temp Humidity Readings
   celsius = thermo.getTemperature();
   humidity = thermo.getHumidity();
 
-  // Modulino Movements readings
-  x_accel = movement.getX();
-  y_accel = movement.getY();
-  z_accel = movement.getZ();
-  roll = movement.getRoll();
-  pitch = movement.getPitch();
-  yaw = movement.getYaw();
-
-  // Serial.print("Temp:");
-  // Serial.println(celsius);
-  
   // Control Loop State Machine
   if (weather_alert == true){
-    // Fold to safe limits during bad weather
     servo_bottom.write(bottom_min_position);
     servo_top.write(top_min_position);
     panel_cleaning();
   } 
-  // Night Time Mode
   else if (solarValue < 100) { 
     servo_bottom.write(idle_position);
     servo_top.write(idle_position);
   }
-  // Excessive Temperature Alert Mode
-  else if (celsius > 36) { // 36 for testing (finger on sensor)
+  else if (celsius > 36) { 
     Serial.println("Excessive heat alert. Safe mode activated");
     servo_bottom.write(idle_position);
     servo_top.write(top_min_position);
   }
   else {
     unsigned long currentMillis = millis();
-    
     if (currentMillis - previousScanTime >= scanInterval || previousScanTime == 0) {
       Serial.println("Starting Sky Scan...");
       scanForMaxValue(scan_step_degrees, scan_delay_ms);
-      
       previousScanTime = millis(); 
     }
   }
   
-  delay(1000); // Being a solar Panel is ok to have 1 second reading 
+  delay(1000); 
 }
 
 // ---------------------------------------------------------
 // Function: scanForMaxValue
-// Purpose: Scans the sky, saves the map to scan_matrix based
-//          on the solar panel output, and points the panel at it.
 // ---------------------------------------------------------
 void scanForMaxValue(int stepSize, int stepDelay) {
   int maxValueFound = -1;
@@ -197,45 +173,56 @@ void scanForMaxValue(int stepSize, int stepDelay) {
   
   bool goingUp = true; 
 
-  // Outer loop uses independent Bottom limits
   for (int b = bottom_min_position; b <= bottom_max_position; b += stepSize) {
     servo_bottom.write(b);
-    
-    // Calculate the array X index for the bottom servo
     int b_idx = (b - bottom_min_position) / stepSize;
     
     if (goingUp) {
-      // Inner loop uses independent Top limits (Going UP)
       for (int t = top_min_position; t <= top_max_position; t += stepSize) {
         servo_top.write(t);
         delay(stepDelay);
         
-        int currentValue = analogRead(solarPin);
+        // Read values
+        int currentSolarValue = analogRead(solarPin);
+        light.update();
+        int currentIRValue = light.getIR();
         
-        // Calculate the array Y index for the top servo and save it
+        // Update global variables for Python while scanning
+        latest_solar_val = currentSolarValue;
+        latest_ir_val = currentIRValue;
+        
+        // Save to matrices
         int t_idx = (t - top_min_position) / stepSize;
-        scan_matrix[b_idx][t_idx] = currentValue;
+        scan_matrix[b_idx][t_idx] = currentSolarValue;
+        ir_matrix[b_idx][t_idx] = currentIRValue;
         
-        if (currentValue > maxValueFound) {
-          maxValueFound = currentValue;
+        if (currentSolarValue > maxValueFound) {
+          maxValueFound = currentSolarValue;
           bestBottomPos = b;
           bestTopPos = t;
         }
       }
     } else {
-      // Inner loop uses independent Top limits (Going DOWN)
       for (int t = top_max_position; t >= top_min_position; t -= stepSize) {
         servo_top.write(t);
         delay(stepDelay);
         
-        int currentValue = analogRead(solarPin);
+        // Read values
+        int currentSolarValue = analogRead(solarPin);
+        light.update();
+        int currentIRValue = light.getIR();
         
-        // Calculate the array Y index for the top servo and save it
+        // Update global variables for Python while scanning
+        latest_solar_val = currentSolarValue;
+        latest_ir_val = currentIRValue;
+        
+        // Save to matrices
         int t_idx = (t - top_min_position) / stepSize;
-        scan_matrix[b_idx][t_idx] = currentValue;
+        scan_matrix[b_idx][t_idx] = currentSolarValue;
+        ir_matrix[b_idx][t_idx] = currentIRValue;
         
-        if (currentValue > maxValueFound) {
-          maxValueFound = currentValue;
+        if (currentSolarValue > maxValueFound) {
+          maxValueFound = currentSolarValue;
           bestBottomPos = b;
           bestTopPos = t;
         }
@@ -245,16 +232,14 @@ void scanForMaxValue(int stepSize, int stepDelay) {
     goingUp = !goingUp; 
   }
 
-  // Save the newly found best positions to the GLOBAL variables
   last_best_bottom = bestBottomPos;
   last_best_top = bestTopPos;
 
-  // Scan complete! Move to the best position.
   servo_bottom.write(bestBottomPos);
   servo_top.write(bestTopPos);
 
-  // Print the final matrix to the Serial Monitor
   printScanMatrix();
+  printIRMatrix();
 
   // Print the final chosen coordinates and Sensor Value
   Serial.println("=================================");
@@ -267,31 +252,24 @@ void scanForMaxValue(int stepSize, int stepDelay) {
   Serial.print(bestTopPos);
   Serial.println("°)");
   Serial.println("=================================");
+  
 }
 
 // ---------------------------------------------------------
-// Function: printScanMatrix
-// Purpose: Outputs the saved 2D array to the Serial Monitor
+// Print Functions & Utilities
 // ---------------------------------------------------------
 void printScanMatrix() {
-  Serial.println("--- Sky Heatmap [Data Source: SOLAR PANEL (A0)] ---");
-  
-  // Print Top Servo Angles (Columns)
+  Serial.println("\n--- Sky Heatmap [Data Source: SOLAR PANEL (A0)] ---");
   Serial.print("B\\T\t");
   for (int t = top_min_position; t <= top_max_position; t += scan_step_degrees) {
     Serial.print(t);
     Serial.print("\t");
   }
   Serial.println();
-
-  // Print Bottom Servo Angles (Rows) and Matrix Data
   for (int b_idx = 0; b_idx < num_bottom_steps; b_idx++) {
-    // Print the Bottom Angle label
     int b_angle = bottom_min_position + (b_idx * scan_step_degrees);
     Serial.print(b_angle);
     Serial.print("\t");
-
-    // Print the sensor values for this row
     for (int t_idx = 0; t_idx < num_top_steps; t_idx++) {
       Serial.print(scan_matrix[b_idx][t_idx]);
       Serial.print("\t");
@@ -301,25 +279,37 @@ void printScanMatrix() {
   Serial.println("-----------------------");
 }
 
+void printIRMatrix() {
+  Serial.println("\n--- Sky Heatmap [Data Source: MODULINO INFRARED (IR)] ---");
+  Serial.print("B\\T\t");
+  for (int t = top_min_position; t <= top_max_position; t += scan_step_degrees) {
+    Serial.print(t);
+    Serial.print("\t");
+  }
+  Serial.println();
+  for (int b_idx = 0; b_idx < num_bottom_steps; b_idx++) {
+    int b_angle = bottom_min_position + (b_idx * scan_step_degrees);
+    Serial.print(b_angle);
+    Serial.print("\t");
+    for (int t_idx = 0; t_idx < num_top_steps; t_idx++) {
+      Serial.print(ir_matrix[b_idx][t_idx]);
+      Serial.print("\t");
+    }
+    Serial.println();
+  }
+  Serial.println("-----------------------");
+}
 
-
-void panel_cleaning()
-{
-
-  // We put the panel in a vertical position for extra cleaning
+void panel_cleaning() {
   servo_bottom.write(idle_position);
   servo_top.write(idle_position);
   delay(100);
-  
   vibro.on(5000);
   delay(1000);
-  
-  // Turn off vibration
   vibro.off();
   delay(10000);
 }
 
-// App Lab Command to set the weather alert
 void set_weather_alert(bool state) {
   if (state == true){
     digitalWrite(LED_BUILTIN, LOW);
@@ -333,14 +323,13 @@ void set_weather_alert(bool state) {
   }
 }
 
+// ==========================================
+// PYTHON BRIDGE GETTER FUNCTIONS
+// ==========================================
+int get_solar() {
+  return latest_solar_val;
+}
 
-    // // Read new movement data from the sensor
-    // has_movement = movement.update();
-    // if(has_movement == 1) {
-    //   // Get acceleration values
-    //   x_accel = movement.getX();
-    //   y_accel = movement.getY();
-    //   z_accel = movement.getZ();
-    
-    //   Bridge.notify("record_sensor_movement", x_accel, y_accel, z_accel);      
-    // }
+int get_infrared() {
+  return latest_ir_val;
+}

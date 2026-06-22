@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UNO Q Solar Panel Telemetry</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }
+        .chart-container { width: 45%; display: inline-block; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 1%; }
+        h1 { text-align: center; color: #333; }
+    </style>
+</head>
+<body>
+
+    <h1>UNO Q Edge AI Telemetry</h1>
+    
+    <div class="chart-container">
+        <canvas id="solarChart"></canvas>
+    </div>
+    
+    <div class="chart-container">
+        <canvas id="irChart"></canvas>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+    <script>
+        // --- Chart Configurations ---
+        const maxDataPoints = 50; // How many data points to show before scrolling
+        
+        // Setup Solar Chart
+        const ctxSolar = document.getElementById('solarChart').getContext('2d');
+        const solarChart = new Chart(ctxSolar, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Solar Voltage (A0)', borderColor: 'rgba(255, 206, 86, 1)', backgroundColor: 'rgba(255, 206, 86, 0.2)', data: [], fill: true, tension: 0.4 }] },
+            options: { responsive: true, scales: { y: { suggestedMin: 0, suggestedMax: 1023 } }, animation: false }
+        });
+
+        // Setup Infrared Chart
+        const ctxIR = document.getElementById('irChart').getContext('2d');
+        const irChart = new Chart(ctxIR, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Infrared Level (Modulino)', borderColor: 'rgba(255, 99, 132, 1)', backgroundColor: 'rgba(255, 99, 132, 0.2)', data: [], fill: true, tension: 0.4 }] },
+            options: { responsive: true, scales: { y: { suggestedMin: 0, suggestedMax: 1023 } }, animation: false }
+        });
+
+        // Helper function to update charts
+        function updateChart(chart, value) {
+            const timeNow = new Date().toLocaleTimeString();
+            chart.data.labels.push(timeNow);
+            chart.data.datasets[0].data.push(value);
+            
+            // Keep the chart from getting too long
+            if (chart.data.labels.length > maxDataPoints) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+            chart.update();
+        }
+
+        // --- AppLab WebUI Connection via Socket.io ---
+        // Connects automatically to the AppLab WebUI backend
+        const socket = io(); 
+
+        // Listen for the exact topic names sent by Python ui.send_message()
+        socket.on("solar_update", function(data) {
+            updateChart(solarChart, data.value);
+        });
+
+        socket.on("ir_update", function(data) {
+            updateChart(irChart, data.value);
+        });
+    </script>
+
+</body>
+</html>

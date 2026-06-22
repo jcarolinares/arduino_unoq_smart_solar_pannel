@@ -3,4 +3,6 @@ description: A small solar pannel system that orient solar pannels automatically
 ports: []
 bricks:
 - arduino:weather_forecast: {}
+- arduino:web_ui: {}
+- arduino:dbstorage_tsstore: {}
 icon: 🌞
