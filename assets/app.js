@@ -282,3 +282,9 @@ function newChartData(borderColor, backgroundColor) {
         }]
     };
 }
+
+// Listen for local environment sensor updates
+socket.on("env_update", function(data) {
+    document.getElementById("localTemp").innerText = data.temp + "°C";
+    document.getElementById("localHum").innerText = data.humidity + "%";
+});

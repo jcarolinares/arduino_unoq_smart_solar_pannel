@@ -3,55 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNO Q Solar Panel Telemetry</title>
+    <title>UNO Q Smart Solar Panel Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; text-align: center; }
-        .dashboard-row { display: flex; justify-content: space-around; flex-wrap: wrap; margin-bottom: 20px; }
         
-        /* Unified container style for Top Row items */
-        .panel-container { width: 45%; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center;}
+        /* Dashboard Row Layouts */
+        .dashboard-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 25px; }
         
-        /* Container style for Bottom Row graphs */
-        .chart-container { width: 45%; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        /* Top Row Components */
+        .side-widget { width: 24%; background: white; padding: 20px 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; min-height: 380px; }
+        .center-widget { width: 48%; background: white; padding: 25px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; min-height: 420px; }
         
-        h1 { color: #333; width: 100%; }
-        h3 { margin-top: 0; color: #555; }
+        /* Bottom Row Components - HEIGHT INCREASED TO FILL SPACE */
+        .chart-container { width: 48%; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; box-sizing: border-box; height: 280px; display: flex; align-items: center; justify-content: center; }
+        .chart-wrapper { width: 100%; height: 100%; position: relative; }
+
+        h1 { color: #333; width: 100%; margin-bottom: 25px; }
+        h3 { margin-top: 0; margin-bottom: 15px; color: #555; font-size: 1.2rem; }
+        
+        /* Canvas Styling */
         canvas#panelCanvas { background-color: #e0f2fe; border-radius: 4px; border: 1px solid #bae6fd; }
+        canvas#skyMapCanvas { background-color: #0f172a; border-radius: 8px; border: 2px solid #334155; width: 100%; max-width: 600px;}
         
-        /* Weather Widget Styles */
-        #weatherIcon { font-size: 5rem; margin: 10px 0; }
-        #weatherCategory { margin: 5px 0; font-size: 1.5rem; text-transform: uppercase; color: #334155; }
-        #weatherDesc { color: #64748b; margin: 0; font-style: italic; }
+        /* Weather Styling */
+        #weatherIcon { font-size: 5.5rem; margin: 15px 0; }
+        #weatherCategory { margin: 10px 0 5px 0; font-size: 1.8rem; text-transform: uppercase; color: #334155; font-weight: bold;}
+        #weatherDesc { color: #64748b; margin: 0; font-style: italic; font-size: 1.1rem;}
+
+        /* Legend Styling */
+        .legend-container { width: 100%; display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: bold; color: #334155; margin-top: 15px; max-width: 600px;}
+        .gradient-bar { flex-grow: 1; height: 16px; border-radius: 8px; margin: 0 15px; background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000); border: 1px solid #cbd5e1; }
     </style>
 </head>
 <body>
 
-    <h1>UNO Q Edge AI Telemetry</h1>
+    <h1>UNO Q Smart Solar Panel Dashboard</h1>
     
     <div class="dashboard-row">
-        <div class="panel-container">
+        <div class="side-widget">
             <h3>Live Panel Orientation</h3>
-            <canvas id="panelCanvas" width="250" height="250"></canvas>
-            <p id="angleText">Pan: 90° | Tilt: 90°</p>
+            <canvas id="panelCanvas" width="240" height="240"></canvas>
+            <p id="angleText" style="margin-top:15px; margin-bottom:0; font-weight:bold; color:#334155; font-size:1.1rem;">Pan: 90° | Tilt: 90°</p>
         </div>
 
-        <div class="panel-container">
-            <h3>Current Weather (Turin)</h3>
-            <div id="weatherIcon">⏳</div>
-            <div id="weatherCategory">Loading...</div>
-            <p id="weatherDesc">Awaiting API data</p>
+        <div class="center-widget">
+            <h3>Live Sky Solar Heatmap</h3>
+            <canvas id="skyMapCanvas" width="550" height="280"></canvas>
+            
+            <div class="legend-container">
+                <span>0 (Low)</span>
+                <div class="gradient-bar"></div>
+                <span>1023 (Peak)</span>
+            </div>
+            <p style="color: #64748b; font-size: 13px; margin-top:10px; margin-bottom:0;">Center = Zenith (Pointing Up) | Outer Edge = Horizon</p>
         </div>
+
+    <div class="side-widget">
+                <h3>Environment (Turin)</h3>
+                <div id="weatherIcon">⏳</div>
+                <div id="weatherCategory">Loading...</div>
+                <p id="weatherDesc" style="margin-bottom: 15px;">Awaiting API data</p>
+                
+                <hr style="width: 85%; border: 0; border-top: 1px solid #e2e8f0; margin: 10px 0;">
+                <h4 style="margin: 5px 0 10px 0; color: #64748b; font-size: 0.85rem; text-transform: uppercase;">Local Modulino Sensors</h4>
+                
+                <div style="display: flex; justify-content: space-around; width: 100%;">
+                    <div>
+                        <div style="font-size: 1.6rem; font-weight: bold; color: #ef4444;" id="localTemp">--°C</div>
+                        <div style="font-size: 0.8rem; color: #64748b;">Temp</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.6rem; font-weight: bold; color: #0ea5e9;" id="localHum">--%</div>
+                        <div style="font-size: 0.8rem; color: #64748b;">Humidity</div>
+                    </div>
+                </div>
+          </div>
     </div>
 
     <div class="dashboard-row">
         <div class="chart-container">
-            <canvas id="solarChart"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="solarChart"></canvas>
+            </div>
         </div>
         
         <div class="chart-container">
-            <canvas id="irChart"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="irChart"></canvas>
+            </div>
         </div>
     </div>
 
@@ -65,7 +106,7 @@
             "foggy": "🌫️"
         };
 
-        // --- LIVE PANEL SKETCH LOGIC ---
+        // --- LIVE PANEL SKETCH LOGIC (3D Reference) ---
         const canvas = document.getElementById('panelCanvas');
         const ctx = canvas.getContext('2d');
         const angleText = document.getElementById('angleText');
@@ -73,7 +114,6 @@
         function drawPanel(pan, tilt) {
             angleText.innerText = `Pan (Bottom): ${pan}° | Tilt (Top): ${tilt}°`;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
 
@@ -81,77 +121,156 @@
             ctx.translate(centerX, centerY);
 
             ctx.fillStyle = '#f1f5f9';
-            ctx.beginPath();
-            ctx.arc(0, 0, 90, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#cbd5e1';
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(0, 0, 90, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.stroke();
 
             ctx.fillStyle = '#64748b';
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
             ctx.fillText("FRONT", 0, 105);
 
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, 90);
-            ctx.setLineDash([5, 5]);
-            ctx.stroke();
-            ctx.setLineDash([]);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 90);
+            ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
 
             ctx.fillStyle = '#475569';
-            ctx.beginPath();
-            ctx.arc(0, 0, 12, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
 
             ctx.save();
             ctx.translate(centerX, centerY);
-            
             let panRad = (90 - pan) * (Math.PI / 180);
             ctx.rotate(panRad);
-            
             let tiltScale = Math.sin(tilt * (Math.PI / 180));
             ctx.scale(1, Math.max(tiltScale, 0.05)); 
             
-            ctx.fillStyle = '#0284c7'; 
-            ctx.fillRect(-75, -50, 150, 100);
-            
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(-75, -50, 150, 100);
+            ctx.fillStyle = '#0284c7'; ctx.fillRect(-70, -45, 140, 90);
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.strokeRect(-70, -45, 140, 90);
             
             ctx.beginPath();
-            ctx.moveTo(-75, 0); ctx.lineTo(75, 0);
-            ctx.moveTo(-25, -50); ctx.lineTo(-25, 50);
-            ctx.moveTo(25, -50); ctx.lineTo(25, 50);
+            ctx.moveTo(-70, 0); ctx.lineTo(70, 0);
+            ctx.moveTo(-23, -45); ctx.lineTo(-23, 45);
+            ctx.moveTo(23, -45); ctx.lineTo(23, 45);
             ctx.stroke();
 
             ctx.fillStyle = '#ef4444';
-            ctx.beginPath();
-            ctx.arc(0, 38, 6, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(0, 35, 6, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         }
-
         drawPanel(90, 90);
 
-        // --- CHART & TELEMETRY LOGIC ---
+        // --- ENHANCED POLAR SKY HEATMAP LOGIC ---
+        const skyCanvas = document.getElementById('skyMapCanvas');
+        const skyCtx = skyCanvas.getContext('2d');
+        let skyMapData = []; 
+        let currentPan = 90;
+        let currentTilt = 90;
+
+        function drawSkyMap() {
+            const w = skyCanvas.width;
+            const h = skyCanvas.height;
+            const cx = w / 2;
+            const cy = 25; 
+            const maxR = h - 50; 
+
+            skyCtx.clearRect(0, 0, w, h);
+
+            // 1. Draw Radar Grid
+            skyCtx.strokeStyle = '#334155';
+            skyCtx.textAlign = 'center';
+
+            for(let t = 0; t <= 90; t += 30) {
+                let r = maxR * ((90 - t) / 90);
+                skyCtx.beginPath();
+                skyCtx.arc(cx, cy, r, 0, Math.PI); 
+                skyCtx.stroke();
+                
+                if(t < 90) {
+                    skyCtx.fillStyle = '#64748b';
+                    skyCtx.font = 'bold 11px Arial';
+                    skyCtx.fillText(`T:${t}°`, cx + 20, cy + r - 5);
+                }
+            }
+
+            for(let p = 0; p <= 180; p += 45) {
+                let angle = (180 - p) * Math.PI / 180; 
+                let x = cx + maxR * Math.cos(angle);
+                let y = cy + maxR * Math.sin(angle); 
+                
+                skyCtx.beginPath();
+                skyCtx.moveTo(cx, cy);
+                skyCtx.lineTo(x, y);
+                skyCtx.stroke();
+                
+                let lx = cx + (maxR + 18) * Math.cos(angle);
+                let ly = cy + (maxR + 18) * Math.sin(angle);
+                skyCtx.fillStyle = '#94a3b8';
+                skyCtx.font = 'bold 12px Arial';
+                skyCtx.fillText(`${p}°`, lx, ly + 5);
+            }
+
+            // 2. Draw Captured Data Points (SMALLER DOTS FOR READABILITY)
+            skyMapData.forEach(d => {
+                let r = maxR * ((90 - d.t) / 90);
+                let angle = (180 - d.p) * Math.PI / 180;
+                let x = cx + r * Math.cos(angle);
+                let y = cy + r * Math.sin(angle);
+
+                let hue = 240 - (d.v / 1023) * 240; 
+                skyCtx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+                
+                skyCtx.beginPath();
+                // Reduced radius from 16 to 13
+                skyCtx.arc(x, y, 13, 0, Math.PI * 2);
+                skyCtx.fill();
+                
+                skyCtx.strokeStyle = '#ffffff';
+                // Thinned the border line
+                skyCtx.lineWidth = 1;
+                skyCtx.stroke();
+
+                skyCtx.fillStyle = '#0f172a';
+                // Reduced font size from 10px to 9px to fit the new dots
+                skyCtx.font = 'bold 9px Arial';
+                skyCtx.fillText(d.v, x, y + 3);
+            });
+
+            // 3. Draw Live Target (Red Circumference Only)
+            let currR = maxR * ((90 - currentTilt) / 90);
+            let currAngle = (180 - currentPan) * Math.PI / 180;
+            let currX = cx + currR * Math.cos(currAngle);
+            let currY = cy + currR * Math.sin(currAngle);
+
+            skyCtx.strokeStyle = '#ef4444'; 
+            skyCtx.lineWidth = 2.5; 
+            skyCtx.beginPath(); 
+            // Reduced the red target ring from 20 to 17 to match
+            skyCtx.arc(currX, currY, 17, 0, Math.PI * 2); 
+            skyCtx.stroke();
+                }
+        drawSkyMap();
+
+        // --- CHART LOGIC ---
         const maxDataPoints = 50; 
         
+        const chartOptions = { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            scales: { y: { suggestedMin: 0, suggestedMax: 1023 } }, 
+            animation: false 
+        };
+
         const ctxSolar = document.getElementById('solarChart').getContext('2d');
         const solarChart = new Chart(ctxSolar, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Solar Voltage (A0)', borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.2)', data: [], fill: true, tension: 0.4 }] },
-            options: { responsive: true, scales: { y: { suggestedMin: 0, suggestedMax: 1023 } }, animation: false }
+            data: { labels: [], datasets: [{ label: 'Solar Value (A0)', borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.2)', data: [], fill: true, tension: 0.4 }] },
+            options: chartOptions
         });
 
         const ctxIR = document.getElementById('irChart').getContext('2d');
         const irChart = new Chart(ctxIR, {
             type: 'line',
             data: { labels: [], datasets: [{ label: 'Infrared Level (Modulino)', borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.2)', data: [], fill: true, tension: 0.4 }] },
-            options: { responsive: true, scales: { y: { suggestedMin: 0, suggestedMax: 1023 } }, animation: false }
+            options: chartOptions
         });
 
         function updateChart(chart, value) {
@@ -168,18 +287,51 @@
         // --- APPLAB SOCKET CONNECTION ---
         const socket = io(); 
 
-        socket.on("solar_update", function(data) { updateChart(solarChart, data.value); });
-        socket.on("ir_update", function(data) { updateChart(irChart, data.value); });
-        socket.on("position_update", function(data) { drawPanel(data.pan, data.tilt); });
-
-        // NEW: Listen for weather updates and change the DOM elements
         socket.on("weather_update", function(data) {
             document.getElementById("weatherCategory").innerText = data.category;
             document.getElementById("weatherDesc").innerText = data.description;
-            // Fallback to a default globe emoji if category is unrecognized
             document.getElementById("weatherIcon").innerText = weatherEmojis[data.category] || "🌍";
         });
 
+        socket.on("position_update", function(data) { 
+            currentPan = data.pan;
+            currentTilt = data.tilt;
+            
+            // --- AUTO-CLEAR MAP LOGIC ---
+            if (currentPan <= 15 && currentTilt <= 5 && skyMapData.length > 10) {
+                skyMapData = [];
+                console.log("New scan detected! Wiping radar map.");
+            }
+
+            drawPanel(data.pan, data.tilt); 
+            drawSkyMap(); 
+        });
+
+        socket.on("solar_update", function(data) { 
+            updateChart(solarChart, data.value); 
+            
+            let p = Math.round(currentPan / 5) * 5;
+            let t = Math.round(currentTilt / 5) * 5;
+            
+            let existingPoint = skyMapData.find(d => d.p === p && d.t === t);
+            if (existingPoint) {
+                // FIXED: Only keep the maximum value ever recorded at this coordinate!
+                existingPoint.v = Math.max(existingPoint.v, data.value);
+            } else {
+                skyMapData.push({p: p, t: t, v: data.value});
+            }
+            drawSkyMap();
+        });
+
+        socket.on("ir_update", function(data) { 
+            updateChart(irChart, data.value); 
+        });
+
+        socket.on("env_update", function(data) {
+            document.getElementById("localTemp").innerText = data.temp + "°C";
+            document.getElementById("localHum").innerText = data.humidity + "%";
+        });
+      
     </script>
 </body>
 </html>

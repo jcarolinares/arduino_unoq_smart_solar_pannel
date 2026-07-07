@@ -90,6 +90,10 @@ def loop():
         pan_val = Bridge.call("get_bottom")
         tilt_val = Bridge.call("get_top")
         
+        # Ask the Arduino for Local Environment Data
+        temp_val = Bridge.call("get_temp")
+        hum_val = Bridge.call("get_humidity")
+        
         # Store and send Solar Panel Voltage
         if solar_val is not None:
             db.write_sample('solar', solar_val, ts)
@@ -103,12 +107,16 @@ def loop():
         # Send Live Servo Positions
         if pan_val is not None and tilt_val is not None:
             ui.send_message('position_update', {"pan": pan_val, "tilt": tilt_val})
+
+        # Send Live Local Environment Data (Rounding to 1 decimal for a clean UI)
+        if temp_val is not None and hum_val is not None:
+            ui.send_message('env_update', {"temp": round(float(temp_val), 1), "humidity": round(float(hum_val), 1)})
             
     except Exception as e:
         print(f"Waiting for Arduino Bridge to be ready... ({e})")
 
     # We sleep for 1 second to keep the Web UI responsive!
-    time.sleep(1)
+    time.sleep(0.2)
 
 # See: https://docs.arduino.cc/software/app-lab/tutorials/getting-started/#app-run
 App.run(user_loop=loop)
