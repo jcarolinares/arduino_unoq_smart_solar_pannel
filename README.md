@@ -6,9 +6,16 @@ A small solar pannel system that orient solar pannels automatically to get as mu
 ![image](assets/docs_assets/thumbnail.jpg)
 
 
+Youtube video below:
+
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=w9L78aqJsKc
+  " target="_blank"><img src="http://img.youtube.com/vi/w9L78aqJsKc/0.jpg"
+  alt="Arduino UNO Q Solar Panel" width="480" height="360" border="10" /></a>
+
+
 The UNO Q Smart Solar Panel system it is a little project intended to be used to learn about Edge AI applied to Green Energy Systems like Solar Panel systems. It is fully open sourced and you can 3D printed, mount and program it on your own!
 
-![UNO Q Smart Solar Panel](https://www.youtube.com/watch?v=3CM1_Ji6fJ8)
+[Youtube Video Link](https://youtu.be/w9L78aqJsKc)
 
 
 ## Features
@@ -52,15 +59,40 @@ The project shows on your network a small webpage dashboard with all the informa
 
 ## Software Required
 
-- Arduino Applab
+- Arduino App Lab
 - Internet connection
 
 
 ## 3D Printed Parts
 
-TODO
+You can find the 3D parts to print and Freecad source file at the folder "3D Models" inside this repository.
+
+![Freecad Solar Panel Parts](assets/docs_assets/solar_panel_freecad.png)
+
+
+### 3D Printing
+
+No special instructions are required to print your solar panel. Standard PLA is a good material to use but if you are going to put your solar panel long hours exposed to the sun can be melted easily, consider to print the parts in PETG if that is the case.
+No supports are required. Use standard 15%/20% Infill and a nice 0.2 layer height.
+
+
+### Assembly
+
+Assembly is extremely easy, just follow the original instructions [here](https://www.hackster.io/TheSmallWonder/pan-tilt-assembly-for-mg90s-servos-da32c).
+
+
+### Credits about the 3D parts
+
+The design was created using as a base the project made by "The Small Wonder"
+
+[Pan & Tilt Assembly for MG90S Servos](https://www.hackster.io/TheSmallWonder/pan-tilt-assembly-for-mg90s-servos-da32c6)
+
+This design was used as base and some piece reused while another new parts were totally created from scrach, some of the were customized. Use the Freecad file to make your own modifications if need, like adapting the solar panel holder piece for any other kind of solar panel!
+
+
 
 
 ## License
 
 This project was created by Julián Caro Linares for Arduino INC under an Open Source Creative Common Share Alike license, CC-BY-SA
+
