@@ -48,13 +48,13 @@ The project shows on your network a small webpage dashboard with all the informa
 ## Hardware Required
 
 - 1x Arduino UNO Q
-- 1x Small Solar Pannel of 80 cm x 60 cm with a maximum voltage of 3 VDC.
+- 1x Small Solar Panel of 80 cm x 60 cm with a maximum voltage of 3 VDC.
 - 2x Servomotors MG90 to move the solar panel.
 - 1x Modulino Movement to detect sanomalies in the movement or even raining drops!
 - 1x Modulino Light to read natural and infrared light
 - 1x Modulino Vibro to autoclean the solar panel making it to vibrate.
 - 1x Modulino Thermo to get the temperature and humidity of the solar panel
-- 1x Small Solar Pannel
+
 
 
 ## Software Required
