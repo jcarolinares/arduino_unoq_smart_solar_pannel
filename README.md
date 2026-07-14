@@ -87,7 +87,7 @@ The design was created using as a base the project made by "The Small Wonder"
 
 [Pan & Tilt Assembly for MG90S Servos](https://www.hackster.io/TheSmallWonder/pan-tilt-assembly-for-mg90s-servos-da32c6)
 
-This design was used as base and some piece reused while another new parts were totally created from scrach, some of the were customized. Use the Freecad file to make your own modifications if need, like adapting the solar panel holder piece for any other kind of solar panel!
+This design was used as base and some pieces were reused while another new parts were totally created from scrach, some of them were customized too. Use the Freecad file to make your own modifications if need, like adapting the solar panel holder piece for any other kind of solar panel!
 
 
 
