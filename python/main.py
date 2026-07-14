@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: Copyright (C) Arduino s.r.l. and/or its affiliated companies
-#
-# SPDX-License-Identifier: MPL-2.0
+#  UNO Q Smart Solar Pannel System
+#  Created by Julián Caro Linares for Arduino INC
+#  CC-BY-SA
+
 
 from arduino.app_utils import *
 from arduino.app_bricks.weather_forecast import WeatherForecast
@@ -82,15 +83,15 @@ def loop():
         })
 
     try:
-        # Ask the Arduino for the sensor values
+        # Ask the Microcontroller for the sensor values
         solar_val = Bridge.call("get_solar")
         ir_val = Bridge.call("get_infrared")
         
-        # Ask the Arduino for the live servo positions
+        # Ask the Microcontroller for the live servo positions
         pan_val = Bridge.call("get_bottom")
         tilt_val = Bridge.call("get_top")
         
-        # Ask the Arduino for Local Environment Data
+        # Ask the Microcontroller for Local Environment Data
         temp_val = Bridge.call("get_temp")
         hum_val = Bridge.call("get_humidity")
         

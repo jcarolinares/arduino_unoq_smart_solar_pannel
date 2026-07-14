@@ -1,10 +1,7 @@
 /*
-UNO Q Smart Solar Pannel System
-Created by Julián Caro Linares for Arduino and Qualcomm
-CC-BY-SA
-
-Updated to include a degree-by-degree smooth sweeping function 
-to protect the mechanics and prevent sudden voltage spikes.
+  UNO Q Smart Solar Pannel System
+  Created by Julián Caro Linares for Arduino INC
+  CC-BY-SA
 */
 
 #include <Arduino_RouterBridge.h>
@@ -21,11 +18,11 @@ ModulinoThermo thermo;
 ModulinoMovement movement;
 ModulinoVibro vibro;
 
-// Define the pin the servo's signal wire is connected to
+// Servo Pins
 const int servoPin_bottom = 5;
 const int servoPin_top = 6;
 
-// Define the Analog pin for the Solar Panel
+// Solar Panel Voltage analog Pin
 const int solarPin = A0;
 
 // Servo saved positions & Scanning Variables
@@ -42,7 +39,7 @@ const int top_max_position = 90;
 const int scan_step_degrees = 10; 
 const int scan_delay_ms = 300; // Delay AFTER reaching the position to let sensors settle
 
-// Calculate the required matrix sizes automatically
+// Calculate the required matrix sizes for the auto scanning
 const int num_bottom_steps = ((bottom_max_position - bottom_min_position) / scan_step_degrees) + 1;
 const int num_top_steps = ((top_max_position - top_min_position) / scan_step_degrees) + 1;
 
@@ -60,7 +57,7 @@ int latest_ir_val = 0;
 
 // Non-blocking Timer Variables
 unsigned long previousScanTime = 0;
-const unsigned long scanInterval = 60000 * 5; 
+const unsigned long scanInterval = 10000  // Time in minutes between auto scanners. 10 minutes by default. 
 
 // Modulino Variables
 int lux = 0;           
@@ -82,7 +79,7 @@ void scanForMaxValue(int stepSize, int stepDelay);
 void printScanMatrix();
 void printIRMatrix();
 void panel_cleaning();
-void smoothMove(int target_b, int target_t); // NEW FUNCTION
+void smoothMove(int target_b, int target_t);
 int get_solar();
 int get_infrared();
 int get_bottom();
@@ -92,7 +89,8 @@ int get_top();
 void setup() {
   Serial.begin(9600);
   Bridge.begin();
-  
+
+  // Bridge providers to communicate with the Python part
   Bridge.provide("set_weather_alert", set_weather_alert);
   Bridge.provide("get_solar", get_solar);
   Bridge.provide("get_infrared", get_infrared);
@@ -100,30 +98,36 @@ void setup() {
   Bridge.provide("get_top", get_top);
   Bridge.provide("get_temp", get_temp);
   Bridge.provide("get_humidity", get_humidity);
-  
+
+  // GPIO Setup
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(solarPin, INPUT); 
 
+  // Modulino init
   Modulino.begin();
   light.begin();
   thermo.begin();
   vibro.begin();
-  
+
+  // Servomotors init
   servo_bottom.attach(servoPin_bottom);
   servo_top.attach(servoPin_top);
   
-  // Set initial position (Without smoothMove since it just booted up)
+  // Set initial servo home position
   servo_bottom.write(idle_position);
   servo_top.write(idle_position);
-  delay(20000); 
+  delay(20000); // We wait around 20 seconds to wait to the Python part to build and launch the Dashboard Interface
 }
+
 
 void loop() {
   int solarValue = analogRead(solarPin);
 
+  // Sensors Updates
   light.update();
   movement.update();
-  
+
+  // Sensors adquisition
   lux = light.getAL();              
   luxCalibrated = light.getLux();   
   ir = light.getIR();               
@@ -134,19 +138,19 @@ void loop() {
   celsius = thermo.getTemperature();
   humidity = thermo.getHumidity();
 
-  // Control Loop State Machine (Replaced jumps with smoothMove)
-  if (weather_alert == true){
+  // Main Control Loop State Machine
+  if (weather_alert == true){ // Weather Alert Emergency Mode
     smoothMove(bottom_min_position, top_min_position);
     panel_cleaning();
   } 
-  else if (solarValue < 100) { 
+  else if (solarValue < 100) { // Night and Too low light Mode
     smoothMove(idle_position, idle_position);
   }
-  else if (celsius > 36) { 
+  else if (celsius > 60) { // Excesive Heat Alert Emergency Mode
     Serial.println("Excessive heat alert. Safe mode activated");
     smoothMove(idle_position, top_min_position);
   }
-  else {
+  else { // Normal mode with auto scanning mode
     unsigned long currentMillis = millis();
     if (currentMillis - previousScanTime >= scanInterval || previousScanTime == 0) {
       Serial.println("Starting Sky Scan...");
@@ -155,13 +159,16 @@ void loop() {
     }
   }
   
-  delay(1000); 
+  delay(1000); // System's Update Interval
 }
 
-// ---------------------------------------------------------
+
+
+
+// -------------------------------------------------------------------------------
 // Function: smoothMove
-// Purpose: Moves servos degree-by-degree to prevent violent jerks
-// ---------------------------------------------------------
+// Purpose: Moves servos degree-by-degree to have a smooth and constant movement
+// -------------------------------------------------------------------------------
 void smoothMove(int target_b, int target_t) {
   int current_b = servo_bottom.read();
   int current_t = servo_top.read();
@@ -186,9 +193,10 @@ void smoothMove(int target_b, int target_t) {
   }
 }
 
-// ---------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------
 // Function: scanForMaxValue
-// ---------------------------------------------------------
+// Purpose: Move the solar panel to each position, gets information from the sensors and show it and store it
+// ---------------------------------------------------------------------------------------------------------------
 void scanForMaxValue(int stepSize, int stepDelay) {
   int maxValueFound = -1;
   int bestBottomPos = idle_position;
@@ -258,7 +266,7 @@ void scanForMaxValue(int stepSize, int stepDelay) {
   last_best_bottom = bestBottomPos;
   last_best_top = bestTopPos;
 
-  // Gracefully glide back to the best position found during the scan!
+  // After the scanning, it moves to the best position to capture light energy
   smoothMove(bestBottomPos, bestTopPos);
 
   printScanMatrix();
@@ -321,6 +329,10 @@ void printIRMatrix() {
   Serial.println("-----------------------");
 }
 
+// -------------------------------------------------------------------------------------------
+// Function: panel_cleaning
+// Purpose: Makes the Modulino Vibro Motor to shake the solar panel from snow, dust or sand
+// -------------------------------------------------------------------------------------------
 void panel_cleaning() {
   smoothMove(idle_position, idle_position);
   delay(100);
@@ -330,6 +342,10 @@ void panel_cleaning() {
   delay(10000);
 }
 
+// -----------------------------------------------------------------------------------------------
+// Function: set_weather_alert
+// Purpose: Moves the Solar Panel to a save position to avoid damage, as much vertical as possible
+// -----------------------------------------------------------------------------------------------
 void set_weather_alert(bool state) {
   if (state == true){
     digitalWrite(LED_BUILTIN, LOW);
